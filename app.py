@@ -3,7 +3,7 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
+# Load .env
 load_dotenv()
 
 app = Flask(__name__)
@@ -12,6 +12,12 @@ app = Flask(__name__)
 ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+
+print("========== TWILIO CONFIG ==========")
+print("ACCOUNT SID:", ACCOUNT_SID)
+print("PHONE NUMBER:", TWILIO_NUMBER)
+print("AUTH TOKEN FOUND:", AUTH_TOKEN is not None)
+print("===================================")
 
 client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
@@ -23,9 +29,14 @@ def home():
 
 @app.route("/send_alert", methods=["POST"])
 def send_alert():
+
     try:
 
+        print("\n========== ALERT RECEIVED ==========")
+
         data = request.get_json()
+
+        print("Incoming Data:", data)
 
         latitude = data["latitude"]
         longitude = data["longitude"]
@@ -33,7 +44,8 @@ def send_alert():
 
         maps_link = f"https://maps.google.com/?q={latitude},{longitude}"
 
-        message = f"""🚨 RESQ ACCIDENT ALERT 🚨
+        message = f"""
+🚨 RESQ ACCIDENT ALERT 🚨
 
 An accident has been detected.
 
@@ -47,19 +59,36 @@ Please reach immediately.
         failed = []
 
         for number in contacts:
+
             try:
-                client.messages.create(
+
+                print(f"\nSending SMS to {number}")
+
+                sms = client.messages.create(
                     body=message,
                     from_=TWILIO_NUMBER,
-                    to=number,
+                    to=number
                 )
+
+                print("SUCCESS!")
+                print("Message SID:", sms.sid)
+                print("Status:", sms.status)
+
                 success.append(number)
 
             except Exception as e:
+
+                print("TWILIO ERROR:")
+                print(str(e))
+
                 failed.append({
                     "number": number,
                     "error": str(e)
                 })
+
+        print("\n========== FINISHED ==========")
+        print("Success:", success)
+        print("Failed:", failed)
 
         return jsonify({
             "status": "success",
@@ -68,6 +97,10 @@ Please reach immediately.
         }), 200
 
     except Exception as e:
+
+        print("SERVER ERROR:")
+        print(str(e))
+
         return jsonify({
             "status": "error",
             "message": str(e)
