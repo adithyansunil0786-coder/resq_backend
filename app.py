@@ -3,7 +3,7 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import os
 
-# Load .env file
+# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
@@ -15,29 +15,25 @@ TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
 client = Client(ACCOUNT_SID, AUTH_TOKEN)
 
-# Emergency Contacts
-EMERGENCY_CONTACTS = [
-    "+919074121495",   # Father
-    "+919846053326",   # Mother
-    "+917902253326",   # Friend
-]
 
 @app.route("/")
 def home():
     return "ResQ SMS Server Running"
 
+
 @app.route("/send_alert", methods=["POST"])
 def send_alert():
+    try:
 
-    data = request.json
+        data = request.get_json()
 
-    latitude = data["latitude"]
-    longitude = data["longitude"]
+        latitude = data["latitude"]
+        longitude = data["longitude"]
+        contacts = data["contacts"]
 
-    maps_link = f"https://maps.google.com/?q={latitude},{longitude}"
+        maps_link = f"https://maps.google.com/?q={latitude},{longitude}"
 
-    message = f"""
-🚨 RESQ ACCIDENT ALERT 🚨
+        message = f"""🚨 RESQ ACCIDENT ALERT 🚨
 
 An accident has been detected.
 
@@ -47,19 +43,36 @@ Location:
 Please reach immediately.
 """
 
-    for number in EMERGENCY_CONTACTS:
+        success = []
+        failed = []
 
-        client.messages.create(
-            body=message,
-            from_=TWILIO_NUMBER,
-            to=number
-        )
+        for number in contacts:
+            try:
+                client.messages.create(
+                    body=message,
+                    from_=TWILIO_NUMBER,
+                    to=number,
+                )
+                success.append(number)
 
-    return jsonify({
-        "status": "success",
-        "message": "SMS Sent Successfully"
-    })
+            except Exception as e:
+                failed.append({
+                    "number": number,
+                    "error": str(e)
+                })
+
+        return jsonify({
+            "status": "success",
+            "sent": success,
+            "failed": failed
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
